@@ -1,5 +1,10 @@
 #include "engine.hpp"
 
+#define GLM_FORCE_DEPTH_ZERO_TO_ONE
+#define GLM_ENABLE_EXPERIMENTAL
+#include <glm/glm.hpp>
+#include <glm/gtc/matrix_transform.hpp>
+
 // --- HELPER FUNCTIONS ---
 
 // Gets GLFW extensions for Vulkan and necessary extensions for debugging
@@ -263,14 +268,24 @@ void Engine::createInitResources(){
         )
     };
     std::string name = "dumb pipeline";
-    raster_pipelines.push_back(Pipeline::createsRasterPipeline(vertex_shader_path, fragment_shader_path,
-                                                    &bindings, vk::CullModeFlagBits::eBack, swapchain.format, 
-                                                    Image::findDepthFormat(physical_device), msaa_samples, 
-                                                    name, nullptr, logical_device
-                                                    ));
+
+    pipeline_builder.set_name(name);
+    pipeline_builder.add_shader(vertex_shader_path, vk::ShaderStageFlagBits::eVertex, logical_device);
+    pipeline_builder.add_shader(fragment_shader_path, vk::ShaderStageFlagBits::eFragment, logical_device);
+    pipeline_builder.set_topology(vk::PrimitiveTopology::eTriangleList);
+    pipeline_builder.set_rasterizer(vk::CullModeFlagBits::eBack, vk::FrontFace::eCounterClockwise, vk::PolygonMode::eFill);
+    pipeline_builder.set_multisampling_none();
+    pipeline_builder.add_non_blend_color_attachment(vk::ColorComponentFlagBits::eR | 
+                                                    vk::ColorComponentFlagBits::eG | 
+                                                    vk::ColorComponentFlagBits::eB | 
+                                                    vk::ColorComponentFlagBits::eA);
+    pipeline_builder.set_color_and_depth_format({swapchain.format}, Image::findDepthFormat(physical_device));
+    pipeline_builder.set_depth_stencil(true, true, vk::CompareOp::eLess);
+
+    raster_pipelines.push_back(pipeline_builder.build(&bindings, logical_device));
     
-    raster_pipelines[0].descriptor_pool = Pipeline::createDescriptorPool(bindings, logical_device, queue_pool.max_frames_in_flight);
-    raster_pipelines[0].descriptor_sets = Pipeline::createDescriptorSets(raster_pipelines[0].descriptor_set_layout,
+    raster_pipelines[0].descriptor_pool = PipelineBuilder::createDescriptorPool(bindings, logical_device, queue_pool.max_frames_in_flight);
+    raster_pipelines[0].descriptor_sets = PipelineBuilder::createDescriptorSets(raster_pipelines[0].descriptor_set_layout,
                                                                         raster_pipelines[0].descriptor_pool,
                                                                         logical_device,
                                                                         queue_pool.max_frames_in_flight);
@@ -278,7 +293,7 @@ void Engine::createInitResources(){
         &ubo_camera_mapped,
         &ubo_objects_mapped
     };
-    Pipeline::writeDescriptorSets(raster_pipelines[0].descriptor_sets, bindings, resources, logical_device, queue_pool.max_frames_in_flight);
+    PipelineBuilder::writeDescriptorSets(raster_pipelines[0].descriptor_sets, bindings, resources, logical_device, queue_pool.max_frames_in_flight);
 
     
     pip_to_obj[&raster_pipelines[0]] = std::vector<Gameobject*>();
@@ -457,7 +472,7 @@ void Engine::recordCommandBuffer(uint32_t image_index)
     command_buffer.setScissor(0, vk::Rect2D(vk::Offset2D(0, 0), swapchain.extent)); // What portion of the image to use
     for(size_t i = 0; i < raster_pipelines.size(); i++){
         command_buffer.bindPipeline(vk::PipelineBindPoint::eGraphics, *(raster_pipelines[i].pipeline));
-        command_buffer.setCullMode(raster_pipelines[i].cull_mode);
+        command_buffer.setCullMode(raster_pipelines[i].rasterizer.cullMode);
         command_buffer.bindDescriptorSets(
             vk::PipelineBindPoint::eGraphics,
             raster_pipelines[i].layout,
