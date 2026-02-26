@@ -179,95 +179,76 @@ struct AllocatedImage{
 
 // Stuct that holds all the information about a raster pipeline
 struct RasterPipelineBundle{
+    std::string name = "default pipeline name";
     vk::raii::Pipeline pipeline = nullptr;
     vk::raii::DescriptorSetLayout descriptor_set_layout = nullptr;
     vk::raii::PipelineLayout layout = nullptr;
     vk::raii::DescriptorPool descriptor_pool = nullptr;
     std::vector<vk::raii::DescriptorSet> descriptor_sets;
 
-    vk::raii::ShaderModule v_shader = nullptr;
-    vk::raii::ShaderModule f_shader = nullptr;
-    std::string v_shader_path = "";
-    std::string f_shader_path = "";
+    std::vector<vk::PipelineShaderStageCreateInfo> shader_stages = {};
+    std::vector<vk::raii::ShaderModule> shaders = {};
 
-    vk::CullModeFlags cull_mode;
-    vk::Format color_format;
-    vk::Format depth_format;
-    vk::SampleCountFlagBits msaa_samples;
-    vk::PrimitiveTopology topology;
-    vk::PolygonMode polygon_mode;
-    vk::FrontFace front_face;
+    vk::PipelineInputAssemblyStateCreateInfo input_assembly = {};
+    vk::PipelineRasterizationStateCreateInfo rasterizer = {};
+    vk::PipelineMultisampleStateCreateInfo multisampling = {};
 
+    std::vector<vk::PipelineColorBlendAttachmentState> color_blend_attachments = {};
+    vk::PipelineColorBlendStateCreateInfo color_blending = {};
+    std::vector<vk::Format> color_formats;
 
-    std::string pipeline_name = "default name";
+    vk::PipelineDepthStencilStateCreateInfo depth_stencil = {};
+
+    vk::PipelineRenderingCreateInfo pipeline_rendering_create_info = {};
 
     RasterPipelineBundle() = default;
 
-    ~RasterPipelineBundle(){
-        if(pipeline != nullptr){ // Output only important pipelines destroyed
-            std::cout << "Destroying pipeline: " << pipeline_name << std::endl;
-            pipeline = nullptr;
-            descriptor_set_layout = nullptr;
-            layout = nullptr;
-            v_shader = nullptr;
-            f_shader = nullptr;
-        }
-    }
-
-    // Disablying copying
+    // Disable copying to prevent double-free
     RasterPipelineBundle(const RasterPipelineBundle&) = delete;
     RasterPipelineBundle& operator=(const RasterPipelineBundle&) = delete;
 
     // Enable moving
     RasterPipelineBundle(RasterPipelineBundle&& other) noexcept
-        : pipeline(std::move(other.pipeline)), descriptor_set_layout(std::move(other.descriptor_set_layout)),
-            layout(std::move(other.layout)), descriptor_pool(std::move(other.descriptor_pool)),
-            descriptor_sets(std::move(other.descriptor_sets)),
-            v_shader(std::move(other.v_shader)),
-            f_shader(std::move(other.f_shader)), pipeline_name(std::move(other.pipeline_name)),
-            v_shader_path(std::move(other.v_shader_path)), f_shader_path(std::move(other.f_shader_path)),
-            cull_mode(other.cull_mode), color_format(other.color_format), depth_format(other.depth_format),
-            msaa_samples(other.msaa_samples), topology(other.topology), polygon_mode(other.polygon_mode),
-            front_face(other.front_face) {}
-    
+        : name(other.name), pipeline(std::move(other.pipeline)), 
+        descriptor_set_layout(std::move(other.descriptor_set_layout)),
+        layout(std::move(other.layout)), 
+        descriptor_pool(std::move(other.descriptor_pool)),
+        descriptor_sets(std::move(other.descriptor_sets)),
+        shader_stages(other.shader_stages),
+        input_assembly(other.input_assembly), rasterizer(other.rasterizer),
+        multisampling(other.multisampling), color_blend_attachments(std::move(other.color_blend_attachments)),
+        color_blending(other.color_blending), 
+        color_formats(std::move(other.color_formats)),
+        depth_stencil(other.depth_stencil),
+        pipeline_rendering_create_info(other.pipeline_rendering_create_info)
+        {}
+
     RasterPipelineBundle& operator=(RasterPipelineBundle&& other) noexcept{
         if(this != &other){
+            name = std::move(other.name);
             pipeline = std::move(other.pipeline);
             descriptor_set_layout = std::move(other.descriptor_set_layout);
             layout = std::move(other.layout);
             descriptor_sets = std::move(other.descriptor_sets);
             descriptor_pool = std::move(other.descriptor_pool);
 
-            v_shader = std::move(other.v_shader);
-            f_shader = std::move(other.f_shader);
-            v_shader_path = std::move(other.v_shader_path);
-            f_shader_path = std::move(f_shader_path);
-
-            cull_mode = other.cull_mode;
-            color_format = other.color_format;
-            depth_format = other.depth_format;
-            msaa_samples = other.msaa_samples;
-            topology = other.topology;
-            polygon_mode = other.polygon_mode;
-            front_face = other.front_face;
-
-            pipeline_name = std::move(other.pipeline_name);
+            shader_stages = std::move(other.shader_stages);
+            input_assembly = input_assembly;
+            rasterizer = other.rasterizer;
+            multisampling = other.multisampling;
+            color_blend_attachments = std::move(other.color_blend_attachments);
+            color_blending = other.color_blending;
+            color_formats = std::move(other.color_formats);
+            depth_stencil = other.depth_stencil;
+            pipeline_rendering_create_info = other.pipeline_rendering_create_info;
         }
         return *this;
     }
 
-    // Override print operation
-    std::ostream& operator<<(std::ostream& os){
-        return (os << "Name: " << pipeline_name <<
-                     "\nVertex shader: " << v_shader_path <<
-                     "\nFragment shader: " << f_shader_path <<
-                     "\nCull mode: " << vk::to_string(cull_mode) <<
-                     "\nColor Format: " << vk::to_string(color_format) <<
-                     "\nDepth Format: " << vk::to_string(depth_format) <<
-                     "\nMsaa samples: " << vk::to_string(msaa_samples) <<
-                     "\nTopology: " << vk::to_string(topology) <<
-                     "\nPolygon mode: " << vk::to_string(polygon_mode) <<
-                     "\nFront face: " << vk::to_string(front_face) << "\n"); 
+    std::ostream& operator<<(std::ostream& os) {
+        return (os << "Name:" << name.c_str()
+                << "\n"
+                );
     }
 
     std::string to_str(){

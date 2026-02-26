@@ -1,59 +1,78 @@
 #include "pipeline.hpp"
 
-#define GLM_FORCE_DEPTH_ZERO_TO_ONE
-#define GLM_ENABLE_EXPERIMENTAL
-#include <glm/glm.hpp>
-#include <glm/gtc/matrix_transform.hpp>
-
-RasterPipelineBundle Pipeline::createsRasterPipeline(const std::string &v_shader_path, const std::string &f_shader_path, 
-                                std::vector<vk::DescriptorSetLayoutBinding> *bindings, vk::CullModeFlags cull_mode, 
-                                vk::Format color_format, vk::Format depth_format, vk::SampleCountFlagBits &msaa_samples,
-                                 std::string &name, vk::raii::DescriptorSetLayout *descriptor_set_layout,
-                                vk::raii::Device &logical_device)
+void PipelineBuilder::set_name(std::string name)
 {
-    RasterPipelineBundle pipeline_bundle;
-    pipeline_bundle.pipeline_name = name;
-    pipeline_bundle.v_shader_path = v_shader_path;
-    pipeline_bundle.f_shader_path = f_shader_path;
-    pipeline_bundle.cull_mode = cull_mode;
-    pipeline_bundle.color_format = color_format;
-    pipeline_bundle.depth_format = depth_format;
-    pipeline_bundle.msaa_samples = msaa_samples;
-    pipeline_bundle.topology = vk::PrimitiveTopology::eTriangleList;
-    pipeline_bundle.polygon_mode = vk::PolygonMode::eFill;
-    pipeline_bundle.front_face = vk::FrontFace::eCounterClockwise;
+    pipeline_bundle.name = std::move(name);
+}
 
-    std::cout << "Creating Raster pipeline. Name: " << pipeline_bundle.pipeline_name << std::endl;
+void PipelineBuilder::add_shader(std::string path, vk::ShaderStageFlagBits stage, vk::raii::Device &logical_device)
+{
+    pipeline_bundle.shaders.push_back(createShaderModule(readFile(path), logical_device));
 
-    // Defining the shader associated with the pipeline
-    pipeline_bundle.v_shader = createShaderModule(readFile(v_shader_path), logical_device);
-    pipeline_bundle.f_shader = createShaderModule(readFile(f_shader_path), logical_device);
+    vk::PipelineShaderStageCreateInfo shader_info;
+    shader_info.stage = stage;
+    shader_info.module = *pipeline_bundle.shaders[pipeline_bundle.shaders.size() - 1];
+    shader_info.pName = "main";
 
-    vk::PipelineShaderStageCreateInfo vert_shader_stage_info;
-    vert_shader_stage_info.stage = vk::ShaderStageFlagBits::eVertex;
-    vert_shader_stage_info.module = *pipeline_bundle.v_shader;
-    vert_shader_stage_info.pName = "main";
+    pipeline_bundle.shader_stages.push_back(shader_info);
+}
 
-    vk::PipelineShaderStageCreateInfo frag_shader_stage_info;
-    frag_shader_stage_info.stage = vk::ShaderStageFlagBits::eFragment;
-    frag_shader_stage_info.module = *pipeline_bundle.f_shader;
-    frag_shader_stage_info.pName = "main";
+void PipelineBuilder::set_topology(vk::PrimitiveTopology topology)
+{
+    vk::PipelineInputAssemblyStateCreateInfo input_assembly;
+    input_assembly.topology = topology;
+    input_assembly.primitiveRestartEnable = vk::False;
 
-    vk::PipelineShaderStageCreateInfo shader_stages[] = {
-        vert_shader_stage_info, frag_shader_stage_info
-    };
+    pipeline_bundle.input_assembly = input_assembly;
+}
+void PipelineBuilder::set_rasterizer(vk::CullModeFlags cull_mode, vk::FrontFace front_face, vk::PolygonMode mode)
+{
+    pipeline_bundle.rasterizer.cullMode = cull_mode;
+    pipeline_bundle.rasterizer.frontFace = front_face;
+    pipeline_bundle.rasterizer.polygonMode = mode;
+    pipeline_bundle.rasterizer.lineWidth = 1.f;
+}
 
-    // Creating the descriptor set layout
-    if(descriptor_set_layout != nullptr){
-        pipeline_bundle.descriptor_set_layout = std::move(*descriptor_set_layout);
-    }
-    else if(bindings != nullptr && (*bindings).size() > 0){
-        pipeline_bundle.descriptor_set_layout = createDescriptorSetLayout(*bindings, logical_device);
-    }
-    else{
-        std::cout << "Empty bindings! This might be an error!" << std::endl;
-        pipeline_bundle.descriptor_set_layout = createDescriptorSetLayout(*bindings, logical_device);
-    }
+void PipelineBuilder::set_multisampling_none()
+{
+    pipeline_bundle.multisampling.sampleShadingEnable = vk::False;
+    pipeline_bundle.multisampling.rasterizationSamples = vk::SampleCountFlagBits::e1;
+    pipeline_bundle.multisampling.minSampleShading = 1.f;
+    pipeline_bundle.multisampling.pSampleMask = nullptr;
+    pipeline_bundle.multisampling.alphaToCoverageEnable = vk::False;
+    pipeline_bundle.multisampling.alphaToOneEnable = vk::False;
+}
+
+void PipelineBuilder::add_non_blend_color_attachment(vk::ColorComponentFlags write_mask)
+{
+    vk::PipelineColorBlendAttachmentState color_blend_attachment;
+    color_blend_attachment.blendEnable = vk::False;
+    color_blend_attachment.colorWriteMask = write_mask;
+    pipeline_bundle.color_blend_attachments.push_back(color_blend_attachment);
+}
+
+void PipelineBuilder::set_color_and_depth_format(std::vector<vk::Format> color_formats, vk::Format depth_format)
+{
+    pipeline_bundle.color_formats = std::move(color_formats);
+
+    pipeline_bundle.pipeline_rendering_create_info.pColorAttachmentFormats = pipeline_bundle.color_formats.data();
+    pipeline_bundle.pipeline_rendering_create_info.colorAttachmentCount = pipeline_bundle.color_formats.size();
+    pipeline_bundle.pipeline_rendering_create_info.depthAttachmentFormat = depth_format;
+}
+
+void PipelineBuilder::set_depth_stencil(bool depth_test_enable, bool depth_write_enable, vk::CompareOp op)
+{
+    pipeline_bundle.depth_stencil.depthTestEnable = depth_test_enable;
+    pipeline_bundle.depth_stencil.depthWriteEnable = depth_write_enable;
+    pipeline_bundle.depth_stencil.depthBoundsTestEnable = vk::False;
+    pipeline_bundle.depth_stencil.stencilTestEnable = vk::False;
+    pipeline_bundle.depth_stencil.depthCompareOp = op;
+}
+
+RasterPipelineBundle PipelineBuilder::build(std::vector<vk::DescriptorSetLayoutBinding> *bindings, vk::raii::Device &logical_device)
+{
+    pipeline_bundle.descriptor_set_layout = createDescriptorSetLayout(*bindings, logical_device);
+
 
     // Vertex components
     vk::VertexInputBindingDescription binding_description = Vertex::getBindingDescription();
@@ -65,49 +84,11 @@ RasterPipelineBundle Pipeline::createsRasterPipeline(const std::string &v_shader
     vertex_input_info.vertexAttributeDescriptionCount = static_cast<uint32_t>(attribute_descriptions.size()); // Good practice to cast
     vertex_input_info.pVertexAttributeDescriptions = attribute_descriptions.data(); 
 
-
-    // Topology of the pipeline (how to group the vertices)
-    vk::PipelineInputAssemblyStateCreateInfo input_assembly;
-    input_assembly.topology = vk::PrimitiveTopology::eTriangleList;
-
-    // Viewport information
-    vk::PipelineViewportStateCreateInfo viewport_state;
-    viewport_state.viewportCount = 1;
-    viewport_state.scissorCount = 1;
-
-    // Rasterizer main info
-    vk::PipelineRasterizationStateCreateInfo rasterizer;
-    rasterizer.depthClampEnable = vk::False; // If true, pixels outside the viewing frustum will be smashed on the far/near plane
-    rasterizer.rasterizerDiscardEnable = vk::False; // When ture, pipeline stops after vertex shader. USed for calculation with no rendering
-    rasterizer.cullMode = pipeline_bundle.cull_mode;
-    rasterizer.polygonMode = pipeline_bundle.polygon_mode;
-    rasterizer.frontFace = pipeline_bundle.front_face;
-    rasterizer.depthBiasEnable = vk::False; // Used to slightly offset depth value of pixels. Primarly used to fix "shadow acne"
-    rasterizer.lineWidth = 1.f; // Only relevant if drawing lines or using eLine mode. Required wideLines GPU feature
-
-    // Multisampling info
-    vk::PipelineMultisampleStateCreateInfo multisampling;
-    multisampling.rasterizationSamples = pipeline_bundle.msaa_samples;
-    multisampling.sampleShadingEnable = vk::False;
-
-    // Depth and stencil setup
-    vk::PipelineDepthStencilStateCreateInfo depth_stencil{};
-    depth_stencil.depthTestEnable = vk::True;
-    depth_stencil.depthWriteEnable = vk::True;
-    depth_stencil.depthBoundsTestEnable = vk::False;
-    depth_stencil.stencilTestEnable = vk::False;
-    depth_stencil.depthCompareOp = vk::CompareOp::eLess;
-
-
-    // Color attachment info, defines how to write on the color image
-    vk::PipelineColorBlendAttachmentState color_blend_attachment;
-    vk::PipelineColorBlendStateCreateInfo color_blending;
-    color_blending.logicOpEnable = vk::False;
-    color_blend_attachment.blendEnable = vk::False;
-    color_blend_attachment.colorWriteMask = vk::ColorComponentFlagBits::eR | vk::ColorComponentFlagBits::eG |
-                                            vk::ColorComponentFlagBits::eB | vk::ColorComponentFlagBits::eA;
-    color_blending.attachmentCount = 1;
-    color_blending.pAttachments = &color_blend_attachment;
+    // Layout create info
+    vk::PipelineLayoutCreateInfo pipeline_layout_info;
+    pipeline_layout_info.setLayoutCount = 1;
+    pipeline_layout_info.pSetLayouts = &*(pipeline_bundle.descriptor_set_layout);    
+    pipeline_bundle.layout = vk::raii::PipelineLayout(logical_device, pipeline_layout_info);
 
     // Dynamic states
     std::vector dynamic_states = {
@@ -119,50 +100,70 @@ RasterPipelineBundle Pipeline::createsRasterPipeline(const std::string &v_shader
     dynamic_state.dynamicStateCount = static_cast<uint32_t>(dynamic_states.size());
     dynamic_state.pDynamicStates = dynamic_states.data();
 
+    // Viewport information
+    vk::PipelineViewportStateCreateInfo viewport_state;
+    viewport_state.viewportCount = 1;
+    viewport_state.scissorCount = 1;
 
-    // Layout create info
-    vk::PipelineLayoutCreateInfo pipeline_layout_info;
-    pipeline_layout_info.setLayoutCount = 1;
-    pipeline_layout_info.pSetLayouts = &*(pipeline_bundle.descriptor_set_layout);    
-    pipeline_bundle.layout = vk::raii::PipelineLayout(logical_device, pipeline_layout_info);
-
-    vk::PipelineRenderingCreateInfo pipeline_rendering_create_info;
-    pipeline_rendering_create_info.colorAttachmentCount = 1;
-    pipeline_rendering_create_info.pColorAttachmentFormats = &pipeline_bundle.color_format;
-    pipeline_rendering_create_info.depthAttachmentFormat = pipeline_bundle.depth_format;
-
+    // Finalizing color attachments
+    pipeline_bundle.color_blending.logicOpEnable = vk::False;
+    pipeline_bundle.color_blending.attachmentCount = pipeline_bundle.color_blend_attachments.size();
+    pipeline_bundle.color_blending.pAttachments = pipeline_bundle.color_blend_attachments.data();
 
     vk::GraphicsPipelineCreateInfo pipeline_info;
-    pipeline_info.pNext = &pipeline_rendering_create_info;
-    pipeline_info.stageCount = 2;
-    pipeline_info.pStages = shader_stages;
+    pipeline_info.pNext = &pipeline_bundle.pipeline_rendering_create_info;
+    pipeline_info.stageCount = pipeline_bundle.shader_stages.size();
+    pipeline_info.pStages = pipeline_bundle.shader_stages.data();
     pipeline_info.pVertexInputState = &vertex_input_info;
-    pipeline_info.pInputAssemblyState = &input_assembly;
+    pipeline_info.pInputAssemblyState = &pipeline_bundle.input_assembly;
     pipeline_info.pViewportState = &viewport_state;
-    pipeline_info.pRasterizationState = &rasterizer;
-    pipeline_info.pColorBlendState = &color_blending;
+    pipeline_info.pRasterizationState = &pipeline_bundle.rasterizer;
+    pipeline_info.pColorBlendState = &pipeline_bundle.color_blending;
     pipeline_info.pDynamicState = &dynamic_state;
     pipeline_info.layout = pipeline_bundle.layout;
-    pipeline_info.pDepthStencilState = &depth_stencil;
-    pipeline_info.pMultisampleState = &multisampling;
+    pipeline_info.pDepthStencilState = &pipeline_bundle.depth_stencil;
+    pipeline_info.pMultisampleState = &pipeline_bundle.multisampling;
 
     pipeline_bundle.pipeline = vk::raii::Pipeline(logical_device, nullptr, pipeline_info);
 
     std::cout << "Created Pipeline:\n" << pipeline_bundle.to_str() << std::endl;
 
 
-    return pipeline_bundle;
-
+    return std::move(pipeline_bundle);
 }
 
-vk::raii::DescriptorSetLayout Pipeline::createDescriptorSetLayout(std::vector<vk::DescriptorSetLayoutBinding> &bindings, const vk::raii::Device &logical_device)
+vk::raii::ShaderModule PipelineBuilder::createShaderModule(const std::vector<char> &code, const vk::raii::Device &logical_device)
+{
+    vk::ShaderModuleCreateInfo create_info;
+    create_info.codeSize = code.size();
+    create_info.pCode = reinterpret_cast<const uint32_t*>(code.data());
+
+    vk::raii::ShaderModule shader_module{logical_device, create_info};
+    return std::move(shader_module);
+}
+
+std::vector<char> PipelineBuilder::readFile(const std::string& filename){
+    std::ifstream file(filename, std::ios::ate | std::ios::binary);
+    if(!file.is_open()){
+        throw std::runtime_error("failed to open file: " + filename);
+    }
+    size_t file_size = (size_t) file.tellg();
+    std::vector<char> buffer(file_size);
+    file.seekg(0);
+    file.read(buffer.data(), file_size);
+    file.close();
+    return buffer;
+}
+
+
+vk::raii::DescriptorSetLayout PipelineBuilder::createDescriptorSetLayout(std::vector<vk::DescriptorSetLayoutBinding> &bindings, const vk::raii::Device &logical_device)
 {
     vk::DescriptorSetLayoutCreateInfo layout_info({}, bindings.size(), bindings.data());
 
     return std::move(vk::raii::DescriptorSetLayout(logical_device, layout_info));
 }
 
-vk::raii::DescriptorPool Pipeline::createDescriptorPool(std::vector<vk::DescriptorSetLayoutBinding> &bindings, vk::raii::Device &logical_device, int max_frames_in_flight)
+vk::raii::DescriptorPool PipelineBuilder::createDescriptorPool(std::vector<vk::DescriptorSetLayoutBinding> &bindings, vk::raii::Device &logical_device, int max_frames_in_flight)
 {
     std::vector<vk::DescriptorPoolSize> pool_sizes;
 
@@ -193,7 +194,7 @@ vk::raii::DescriptorPool Pipeline::createDescriptorPool(std::vector<vk::Descript
     return std::move(vk::raii::DescriptorPool(logical_device, pool_info));
 }
 
-std::vector<vk::raii::DescriptorSet> Pipeline::createDescriptorSets(vk::raii::DescriptorSetLayout &descriptor_set_layout, vk::raii::DescriptorPool &descriptor_pool, vk::raii::Device &logical_device, int max_frames_in_flight)
+std::vector<vk::raii::DescriptorSet> PipelineBuilder::createDescriptorSets(vk::raii::DescriptorSetLayout &descriptor_set_layout, vk::raii::DescriptorPool &descriptor_pool, vk::raii::Device &logical_device, int max_frames_in_flight)
 {
     std::vector<vk::raii::DescriptorSet> descriptor_sets;
 
@@ -207,7 +208,7 @@ std::vector<vk::raii::DescriptorSet> Pipeline::createDescriptorSets(vk::raii::De
 }
 
 // TODO: Chenge from void * to a more safe option
-void Pipeline::writeDescriptorSets(
+void PipelineBuilder::writeDescriptorSets(
     const std::vector<vk::raii::DescriptorSet> &descriptor_sets, 
     const std::vector<vk::DescriptorSetLayoutBinding> &bindings, 
     const std::vector<void *> &resources, 
@@ -264,27 +265,4 @@ void Pipeline::writeDescriptorSets(
         multi_buffer_infos.clear();
         single_buffer_infos.clear();
     }
-}
-
-vk::raii::ShaderModule Pipeline::createShaderModule(const std::vector<char> &code, const vk::raii::Device &logical_device)
-{
-    vk::ShaderModuleCreateInfo create_info;
-    create_info.codeSize = code.size();
-    create_info.pCode = reinterpret_cast<const uint32_t*>(code.data());
-
-    vk::raii::ShaderModule shader_module{logical_device, create_info};
-    return std::move(shader_module);
-}
-
-std::vector<char> Pipeline::readFile(const std::string& filename){
-    std::ifstream file(filename, std::ios::ate | std::ios::binary);
-    if(!file.is_open()){
-        throw std::runtime_error("failed to open file: " + filename);
-    }
-    size_t file_size = (size_t) file.tellg();
-    std::vector<char> buffer(file_size);
-    file.seekg(0);
-    file.read(buffer.data(), file_size);
-    file.close();
-    return buffer;
 }

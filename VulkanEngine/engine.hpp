@@ -71,6 +71,7 @@ protected:
     AllocatedImage depth_image;
 
     // Pipeline components
+    PipelineBuilder pipeline_builder;
     std::vector<RasterPipelineBundle> raster_pipelines;
     std::vector<Gameobject> objects;
     std::vector<std::vector<MappedUBO>> ubo_objects_mapped;
