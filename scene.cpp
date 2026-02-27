@@ -86,6 +86,15 @@ void Scene::createInitResources()
             1,
             vk::ShaderStageFlagBits::eVertex,
             nullptr
+        ),
+
+        // Biding 2: Environment Uniform Buffers
+        vk::DescriptorSetLayoutBinding(
+            1,
+            vk::DescriptorType::eUniformBuffer,
+            MAX_ENV_OBJS,
+            vk::ShaderStageFlagBits::eVertex,
+            nullptr
         )
     };
     std::string name = "dumb pipeline";
@@ -112,7 +121,8 @@ void Scene::createInitResources()
                                                                         queue_pool.max_frames_in_flight);
     std::vector<void *> resources{
         &ubo_camera_mapped,
-        &ubo_player_mapped
+        &ubo_player_mapped,
+        &ubo_environment_mapped
     };
     PipelineBuilder::writeDescriptorSets(main_pipeline.descriptor_sets, bindings, resources, logical_device, queue_pool.max_frames_in_flight);
 

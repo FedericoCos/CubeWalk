@@ -81,14 +81,12 @@ public:
 
     // Enable moving
     Player(Player&& other) noexcept 
-        : Gameobject(std::move(other)),
-          ubo(std::move(other.ubo))
+        : Gameobject(std::move(other))
         {}
 
     Player& operator=(Player&& other) noexcept {
         if (this != &other) {
             Gameobject::operator=(std::move(other));
-            ubo = std::move(other.ubo);
         }
         return *this;
     }
@@ -119,8 +117,6 @@ private:
 
     float jump_force;
     float gravity_force;
-
-    UniformBufferGameObjects ubo;
 
 
 };
