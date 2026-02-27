@@ -2,28 +2,6 @@
 
 #include "VulkanEngine/gameobject.hpp"
 
-struct ObjectUBO{
-    glm::mat4 model = glm::mat4(1.f);
-
-    ObjectUBO() = default;
-
-    // Delete Copying
-    ObjectUBO(const ObjectUBO&) = delete;
-    ObjectUBO& operator=(const ObjectUBO&) = delete;
-
-    // Enable moving
-    ObjectUBO(ObjectUBO&& other) noexcept 
-        : model(std::move(other.model))
-        {}
-
-    ObjectUBO& operator=(ObjectUBO&& other) noexcept {
-        if (this != &other) {
-            model = std::move(other.model);
-        }
-        return *this;
-    }
-};
-
 
 class Player : public Gameobject{
 public:
@@ -120,7 +98,7 @@ public:
 
     void update(const float dtime) override;
 
-    ObjectUBO& getUBO(){
+    UniformBufferGameObjects& getUBO(){
         if(dirty_model){
             getModelMat();
         }
@@ -142,7 +120,7 @@ private:
     float jump_force;
     float gravity_force;
 
-    ObjectUBO ubo;
+    UniformBufferGameObjects ubo;
 
 
 };

@@ -8,7 +8,7 @@ void Scene::createInitResources()
 
     ubo_player_mapped.clear();
     ubo_player_mapped.resize(queue_pool.max_frames_in_flight);
-    vk::DeviceSize player_buffer_size = sizeof(ObjectUBO);
+    vk::DeviceSize player_buffer_size = sizeof(UniformBufferGameObjects);
 
     for(size_t i = 0; i < queue_pool.max_frames_in_flight; i++){
         ubo_player_mapped[i].buffer = Device::createBuffer(
@@ -20,6 +20,30 @@ void Scene::createInitResources()
         );
         vmaMapMemory(vma_allocator, ubo_player_mapped[i].buffer.allocation, &ubo_player_mapped[i].data);
     }
+
+    // Setting up the environment
+    ground = Plane(glm::vec3(0.0f), 10.f, 10.f, glm::vec3(90.f, 0.f, 0.f));
+    ground.start(vma_allocator, logical_device, queue_pool);
+    current_env_objs++;
+
+    ubo_environment_mapped.clear();
+    ubo_environment_mapped.resize(MAX_ENV_OBJS);
+    vk::DeviceSize env_buffer_size = sizeof(UniformBufferGameObjects);
+    for(size_t i = 0; i < MAX_ENV_OBJS; i++){
+        ubo_environment_mapped[i].clear();
+        ubo_environment_mapped[i].resize(queue_pool.max_frames_in_flight);
+        for(size_t j = 0; j < queue_pool.max_frames_in_flight; j++){
+            ubo_environment_mapped[i][j].buffer = Device::createBuffer(
+                env_buffer_size,
+                vk::BufferUsageFlagBits::eUniformBuffer,
+                vk::MemoryPropertyFlagBits::eHostVisible | vk::MemoryPropertyFlagBits::eHostCoherent,
+                "Env obj Buffer",
+                vma_allocator
+            );
+            vmaMapMemory(vma_allocator, ubo_environment_mapped[i][j].buffer.allocation, &ubo_environment_mapped[i][j].data);
+        }
+    }
+
 
     // CAMERA RESOURCES SETUP
     ubo_camera_mapped.clear();
@@ -103,7 +127,7 @@ void Scene::updateUniformBuffers(float dtime, int current_frame)
 
     memcpy(ubo_camera_mapped[current_frame].data, &ubo_camera, sizeof(UniformBufferCamera));
 
-    memcpy(ubo_player_mapped[current_frame].data, &player.getUBO(), sizeof(ObjectUBO));
+    memcpy(ubo_player_mapped[current_frame].data, &player.getUBO(), sizeof(UniformBufferGameObjects));
 }
 
 void Scene::recordCommandBuffer(uint32_t image_index)
