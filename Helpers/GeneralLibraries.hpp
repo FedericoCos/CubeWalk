@@ -362,7 +362,25 @@ struct UniformBufferCamera{
 };
 
 struct UniformBufferGameObjects{
-    glm::mat4 model;
+    glm::mat4 model = glm::mat4(1.f);
+
+    UniformBufferGameObjects() = default;
+
+    // Delete Copying
+    UniformBufferGameObjects(const UniformBufferGameObjects&) = delete;
+    UniformBufferGameObjects& operator=(const UniformBufferGameObjects&) = delete;
+
+    // Enable moving
+    UniformBufferGameObjects(UniformBufferGameObjects&& other) noexcept 
+        : model(std::move(other.model))
+        {}
+
+    UniformBufferGameObjects& operator=(UniformBufferGameObjects&& other) noexcept {
+        if (this != &other) {
+            model = std::move(other.model);
+        }
+        return *this;
+    }
 };
 
 // Uniform Buffer object for mapped data
