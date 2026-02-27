@@ -39,7 +39,8 @@ public:
           scale(other.scale),
           dis_speed(other.dis_speed),
           rot_speed(other.rot_speed),
-          scale_speed(other.scale_speed) {
+          scale_speed(other.scale_speed),
+          ubo(std::move(other.ubo)) {
     }
 
     Gameobject& operator=(Gameobject&& other) noexcept {
@@ -56,6 +57,8 @@ public:
             dis_speed = other.dis_speed;
             rot_speed = other.rot_speed;
             scale_speed = other.scale_speed;
+
+            ubo = std::move(other.ubo);
         }
         return *this;
     }
@@ -123,6 +126,16 @@ public:
         return model;
     }
 
+    UniformBufferGameObjects& getUBO(){
+        if(dirty_model){
+            getModelMat();
+        }
+
+        ubo.model = model;
+
+        return ubo;
+    }
+
 protected:
     std::vector<Vertex> vertices;
     AllocatedBuffer vertex_buffer;
@@ -134,6 +147,7 @@ protected:
     glm::vec3 rotation;
     glm::vec3 scale;
     glm::mat4 model;
+    UniformBufferGameObjects ubo;
     bool dirty_model = true; // Tracks whether model needs to be recalculated or not
 
     // Velocity information
