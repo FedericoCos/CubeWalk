@@ -19,6 +19,7 @@ public:
     void add_non_blend_color_attachment(vk::ColorComponentFlags write_mask);
     void set_color_and_depth_format(std::vector<vk::Format> color_formats,vk::Format depth_format);
     void set_depth_stencil(bool depth_test_enable, bool depth_write_enable, vk::CompareOp op);
+    void set_push_constant(vk::ShaderStageFlagBits stage, uint32_t offset, uint32_t size);
 
     RasterPipelineBundle build(std::vector<vk::DescriptorSetLayoutBinding> *bindings, vk::raii::Device &logical_device);
 
