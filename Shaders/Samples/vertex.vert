@@ -15,9 +15,9 @@ layout(binding = 0) uniform UniformBufferCamera {
 
 layout(binding = 1) uniform UniformBufferGameObject{
     mat4 model;
-}obj_ubo[10];
+}object_ubo;
 
 void main(){
-    gl_Position = cam_ubo.proj * cam_ubo.view * obj_ubo[gl_InstanceIndex].model * vec4(inPosition, 1.0);
+    gl_Position = cam_ubo.proj * cam_ubo.view * object_ubo.model * vec4(inPosition, 1.0);
     fragColor = inColor;
 }

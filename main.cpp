@@ -1,7 +1,7 @@
-#include "VulkanEngine/engine.hpp"
+#include "scene.hpp"
 
 int main(int argc, char * argv[]){
-    Engine engine;
+    Scene engine;
 
     std::array<uint32_t, 2> dimensions{0, 0};
     // Extracting title from input
