@@ -192,6 +192,7 @@ struct RasterPipelineBundle{
     vk::PipelineInputAssemblyStateCreateInfo input_assembly = {};
     vk::PipelineRasterizationStateCreateInfo rasterizer = {};
     vk::PipelineMultisampleStateCreateInfo multisampling = {};
+    std::vector<vk::PushConstantRange> push_constant_ranges = {};
 
     std::vector<vk::PipelineColorBlendAttachmentState> color_blend_attachments = {};
     vk::PipelineColorBlendStateCreateInfo color_blending = {};
@@ -216,7 +217,9 @@ struct RasterPipelineBundle{
         descriptor_sets(std::move(other.descriptor_sets)),
         shader_stages(other.shader_stages),
         input_assembly(other.input_assembly), rasterizer(other.rasterizer),
-        multisampling(other.multisampling), color_blend_attachments(std::move(other.color_blend_attachments)),
+        multisampling(other.multisampling), 
+        push_constant_ranges(std::move(other.push_constant_ranges)),
+        color_blend_attachments(std::move(other.color_blend_attachments)),
         color_blending(other.color_blending), 
         color_formats(std::move(other.color_formats)),
         depth_stencil(other.depth_stencil),
@@ -236,6 +239,7 @@ struct RasterPipelineBundle{
             input_assembly = input_assembly;
             rasterizer = other.rasterizer;
             multisampling = other.multisampling;
+            push_constant_ranges = std::move(other.push_constant_ranges);
             color_blend_attachments = std::move(other.color_blend_attachments);
             color_blending = other.color_blending;
             color_formats = std::move(other.color_formats);

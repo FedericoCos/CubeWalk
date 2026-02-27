@@ -69,6 +69,16 @@ void PipelineBuilder::set_depth_stencil(bool depth_test_enable, bool depth_write
     pipeline_bundle.depth_stencil.depthCompareOp = op;
 }
 
+void PipelineBuilder::set_push_constant(vk::ShaderStageFlagBits stage, uint32_t offset, uint32_t size)
+{
+    vk::PushConstantRange constant_range;
+    constant_range.stageFlags = stage;
+    constant_range.offset = offset;
+    constant_range.size = size;
+
+    pipeline_bundle.push_constant_ranges.push_back(constant_range);
+}
+
 RasterPipelineBundle PipelineBuilder::build(std::vector<vk::DescriptorSetLayoutBinding> *bindings, vk::raii::Device &logical_device)
 {
     pipeline_bundle.descriptor_set_layout = createDescriptorSetLayout(*bindings, logical_device);
@@ -87,7 +97,11 @@ RasterPipelineBundle PipelineBuilder::build(std::vector<vk::DescriptorSetLayoutB
     // Layout create info
     vk::PipelineLayoutCreateInfo pipeline_layout_info;
     pipeline_layout_info.setLayoutCount = 1;
-    pipeline_layout_info.pSetLayouts = &*(pipeline_bundle.descriptor_set_layout);    
+    pipeline_layout_info.pSetLayouts = &*(pipeline_bundle.descriptor_set_layout);  
+    if(pipeline_bundle.push_constant_ranges.size() > 0){
+        pipeline_layout_info.pushConstantRangeCount = static_cast<uint32_t>(pipeline_bundle.push_constant_ranges.size());
+        pipeline_layout_info.pPushConstantRanges = pipeline_bundle.push_constant_ranges.data();
+    }  
     pipeline_bundle.layout = vk::raii::PipelineLayout(logical_device, pipeline_layout_info);
 
     // Dynamic states
